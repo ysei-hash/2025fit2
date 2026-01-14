@@ -1,66 +1,74 @@
 import pyxel, random
 
-W,H = 20,20
-CELL = 6
+# --- 定数 ---
+W, H = 21, 21   # ★必ず奇数
+CELL = 8
+VIEW = 11
 
-maze = [[1]*W for _ in range(H)]
+# --- 迷路初期化（全部壁）---
+maze = [[1 for _ in range(W)] for _ in range(H)]
 
+# --- 完全迷路生成（DFS）---
 def gen_maze(x, y):
     maze[y][x] = 0
-    dirs = [(1,0),(-1,0),(0,1),(0,-1)]
+    dirs = [(2,0), (-2,0), (0,2), (0,-2)]
     random.shuffle(dirs)
     for dx, dy in dirs:
-        nx, ny = x+dx*2, y+dy*2
-        if 0<=nx<W and 0<=ny<H and maze[ny][nx]==1:
-            maze[y+dy][x+dx] = 0
+        nx, ny = x + dx, y + dy
+        if 0 < nx < W-1 and 0 < ny < H-1 and maze[ny][nx] == 1:
+            maze[y + dy//2][x + dx//2] = 0
             gen_maze(nx, ny)
 
-gen_maze(1,1)
+# スタートは必ず通路
+gen_maze(1, 1)
 
-px, py = 1,1
-goal = (W-2,H-2)
-light_on = True
+# --- 状態 ---
+px, py = 1, 1
+goal = (W-2, H-2)  # ★必ず通路になる
 
 class App:
     def __init__(self):
-        pyxel.init(W*CELL, H*CELL, title="Light Maze")
+        pyxel.init(VIEW*CELL, VIEW*CELL, title="One-Path Light Maze")
         pyxel.run(self.update, self.draw)
 
     def update(self):
-        global px, py, light_on
-        if pyxel.btnp(pyxel.KEY_SPACE):
-            light_on = not light_on
+        global px, py
+        dx = dy = 0
+        if pyxel.btnp(pyxel.KEY_RIGHT): dx = 1
+        if pyxel.btnp(pyxel.KEY_LEFT):  dx = -1
+        if pyxel.btnp(pyxel.KEY_DOWN):  dy = 1
+        if pyxel.btnp(pyxel.KEY_UP):    dy = -1
 
-        dx = pyxel.btn(pyxel.KEY_RIGHT) - pyxel.btn(pyxel.KEY_LEFT)
-        dy = pyxel.btn(pyxel.KEY_DOWN) - pyxel.btn(pyxel.KEY_UP)
-        nx, ny = px+dx, py+dy
-        if 0<=nx<W and 0<=ny<H and maze[ny][nx]==0:
+        nx, ny = px + dx, py + dy
+        if 0 <= nx < W and 0 <= ny < H and maze[ny][nx] == 0:
             px, py = nx, ny
 
     def draw(self):
         pyxel.cls(0)
-        cx, cy = px*CELL+CELL//2, py*CELL+CELL//2
+        half = VIEW // 2
 
-        # ライトON → ノイズ入りの円形ライト
-        if light_on:
-            base_r = 30
-            r = base_r + random.randint(-2,2)
+        # --- カメラ追従描画 ---
+        for y in range(VIEW):
+            for x in range(VIEW):
+                mx = px + x - half
+                my = py + y - half
+                if 0 <= mx < W and 0 <= my < H:
+                    col = 7 if maze[my][mx] else 1
+                    pyxel.rect(x*CELL, y*CELL, CELL, CELL, col)
 
-            for y in range(H):
-                for x in range(W):
-                    wx, wy = x*CELL, y*CELL
-                    dx = (wx+CELL//2 - cx)
-                    dy = (wy+CELL//2 - cy)
-                    if dx*dx + dy*dy < r*r:
-                        col = 7 if maze[y][x]==1 else 1
-                        pyxel.rect(wx, wy, CELL, CELL, col)
-
-        # ライトOFF → 自分の位置だけ少し見える
-        else:
-            pyxel.rect(px*CELL, py*CELL, CELL, CELL, 3)
-
-        # ゴール（光の有無に関係なく見えてOKにしたい場合）
+        # --- ゴール ---
         gx, gy = goal
-        pyxel.rectb(gx*CELL, gy*CELL, CELL, CELL, 8)
+        if abs(px-gx)+abs(py-gy) < half:
+            x = (gx-px+half)*CELL
+            y = (gy-py+half)*CELL
+            pyxel.rectb(x, y, CELL, CELL, 10)
+
+        # --- プレイヤー ---
+        pyxel.circ(
+            half*CELL + CELL//2,
+            half*CELL + CELL//2,
+            CELL//2 + 1,
+            11
+        )
 
 App()
